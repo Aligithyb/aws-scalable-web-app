@@ -72,6 +72,10 @@ graph TD
 
 ---
 
+
+
+<img width="868" height="428" alt="image" src="https://github.com/user-attachments/assets/62d8b61a-7029-4794-949f-5b3bec3cdd59" />
+
 ## 2. Project Executive Summary
 
 This project documents a production-grade, fault-tolerant, multi-tier web application architecture engineered on Amazon Web Services (AWS).
