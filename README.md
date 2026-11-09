@@ -1,12 +1,6 @@
-```markdown
-# Scalable & Highly Available Web Application Architecture on AWS  
-**Project:** Graduation Project — Scalable Web Application with ALB and Auto Scaling  
-
----
-
-## 1. Solution Architecture Diagram
-
-```mermaid
+Scalable & Highly Available Web Application Architecture on AWS
+Project: Graduation Project — Scalable Web Application with Decoupled Frontend/Backend, ALB, and Auto Scaling
+1. Solution Architecture Diagram
 graph TD
     User([End User / Web Client]) -->|DNS Lookup| R53[Amazon Route 53]
     R53 -->|Alias Target| CF[Amazon CloudFront CDN]
@@ -21,11 +15,11 @@ graph TD
         end
 
         subgraph AZ1 [Availability Zone 1: us-east-1a]
-            subgraph PubSub1 [Public Subnet - 10.0.1.0/24]
-                ALB_Node1[ALB Node AZ-1a]
+            subgraph FrontendSub1 [Frontend Subnet - 10.0.1.0/24]
+                FE_1[Frontend Web Instance 1]
             end
-            subgraph PrivAppSub1 [Private App Subnet - 10.0.10.0/24]
-                EC2_1[EC2 App Instance 1]
+            subgraph BackendSub1 [Backend App Subnet - 10.0.10.0/24]
+                BE_1[Backend API Instance 1]
             end
             subgraph PrivDBSub1 [Private DB Subnet - 10.0.20.0/24]
                 RDS_Primary[(RDS MySQL Primary)]
@@ -33,124 +27,79 @@ graph TD
         end
 
         subgraph AZ2 [Availability Zone 2: us-east-1b]
-            subgraph PubSub2 [Public Subnet - 10.0.2.0/24]
-                ALB_Node2[ALB Node AZ-1b]
+            subgraph FrontendSub2 [Frontend Subnet - 10.0.2.0/24]
+                FE_2[Frontend Web Instance 2]
             end
-            subgraph PrivAppSub2 [Private App Subnet - 10.0.11.0/24]
-                EC2_2[EC2 App Instance 2]
+            subgraph BackendSub2 [Backend App Subnet - 10.0.11.0/24]
+                BE_2[Backend API Instance 2]
             end
             subgraph PrivDBSub2 [Private DB Subnet - 10.0.21.0/24]
                 RDS_Standby[(RDS MySQL Standby - Sync Replication)]
             end
         end
 
-        ASG[Auto Scaling Group] -.-> EC2_1
-        ASG -.-> EC2_2
+        ASG_FE[Frontend Auto Scaling Group] -.-> FE_1
+        ASG_FE -.-> FE_2
+        ASG_BE[Backend Auto Scaling Group] -.-> BE_1
+        ASG_BE -.-> BE_2
     end
 
-    ALB -->|HTTP 8080| EC2_1
-    ALB -->|HTTP 8080| EC2_2
+    ALB -->|HTTP 80| FE_1
+    ALB -->|HTTP 80| FE_2
     
-    EC2_1 -->|MySQL 3306| RDS_Primary
-    EC2_2 -->|MySQL 3306| RDS_Primary
+    FE_1 -->|API Proxy 3000| BE_1
+    FE_2 -->|API Proxy 3000| BE_2
+    
+    BE_1 -->|MySQL 3306| RDS_Primary
+    BE_2 -->|MySQL 3306| RDS_Primary
     RDS_Primary <-->|Synchronous Replication| RDS_Standby
 
-    EC2_1 -.->|Outbound Updates| NAT1
-    EC2_2 -.->|Outbound Updates| NAT2
+    FE_1 -.->|Outbound Updates| NAT1
+    BE_1 -.->|Outbound Updates| NAT1
+    FE_2 -.->|Outbound Updates| NAT2
+    BE_2 -.->|Outbound Updates| NAT2
     NAT1 --> IGW
     NAT2 --> IGW
-
-    SSM[AWS Systems Manager - Session Manager] -.->|Bastion-Free Access| EC2_1
-    SSM -.->|Bastion-Free Access| EC2_2
-    CW[AWS CloudWatch & SNS] <== Alarms & Monitoring ==> ASG
-
-```
-
----
-
 
 
 <img width="868" height="428" alt="image" src="https://github.com/user-attachments/assets/62d8b61a-7029-4794-949f-5b3bec3cdd59" />
 
-## 2. Project Executive Summary
 
-This project documents a production-grade, fault-tolerant, multi-tier web application architecture engineered on Amazon Web Services (AWS).
+    SSM[AWS Systems Manager - Session Manager] -.->|Bastion-Free Access| FE_1
+    SSM -.->|Bastion-Free Access| BE_1
+    CW[AWS CloudWatch & SNS] <== Alarms & Monitoring ==> ASG_BE
 
-The infrastructure implements the AWS Well-Architected Framework principles by strictly isolating compute and storage workloads in private subnets across two distinct Availability Zones (`us-east-1a` and `us-east-1b`). Inbound web traffic is managed by an Application Load Balancer (ALB) and CloudFront distribution, protected at the network edge by AWS WAF rules, and supported by a high-availability Multi-AZ relational database.
-
----
-
-## 3. Network Architecture & Subnet Specifications
-
-### Virtual Private Cloud (VPC) Setup
-
-* **VPC CIDR Block:** `10.0.0.0/16`
-* **DNS Settings:** Hostnames enabled, Resolution enabled.
-
-### Subnet Layout
-
-| Subnet Name | Availability Zone | CIDR Block | Type | Resource Hosted |
-| --- | --- | --- | --- | --- |
-| `pub-sub-1a` | `us-east-1a` | `10.0.1.0/24` | Public | ALB Interface, NAT Gateway 1 |
-| `pub-sub-1b` | `us-east-1b` | `10.0.2.0/24` | Public | ALB Interface, NAT Gateway 2 |
-| `priv-app-1a` | `us-east-1a` | `10.0.10.0/24` | Private | EC2 Auto Scaling Instance 1 |
-| `priv-app-1b` | `us-east-1b` | `10.0.11.0/24` | Private | EC2 Auto Scaling Instance 2 |
-| `priv-db-1a` | `us-east-1a` | `10.0.20.0/24` | Private | RDS MySQL Primary |
-| `priv-db-1b` | `us-east-1b` | `10.0.21.0/24` | Private | RDS MySQL Standby |
-
-### Route Tables & Gateways
-
-* **Internet Gateway (IGW):** Attached to `10.0.0.0/16` and routed via Public Subnet Route Table (`0.0.0.0/0 -> igw-id`).
-* **NAT Gateways:** Deployed in each Public Subnet to allow private compute instances to download OS security patches and external software packages without exposing public IP addresses.
-
----
-
-## 4. Key AWS Services & Tier Architecture
-
-### Edge & Security Tier
-
-* **AWS WAF:** Associated with CloudFront/ALB to inspect inbound layer 7 HTTP(S) traffic, blocking SQL Injection (SQLi), Cross-Site Scripting (XSS), and rate-limiting abusive IP addresses.
-* **Amazon CloudFront:** Configured as the global Edge distribution with optimized caching rules for static assets (`/static/*`, CSS, JS, images), reducing load on backend EC2 servers.
-* **Amazon Route 53:** Manages public DNS records using Alias routing directly to CloudFront/ALB.
-
-### Compute & Load Balancing Tier
-
-* **Application Load Balancer (ALB):** Public-facing across `pub-sub-1a` and `pub-sub-1b`. Monitors target group health via HTTP `/healthcheck` status codes.
-* **Auto Scaling Group (ASG):**
-* **Min Size:** 2 | **Desired Capacity:** 2 | **Max Size:** 6
-* **Launch Template:** Amazon Linux 2023 AMI with User Data script initializing application dependencies and CloudWatch agent.
-* **Scaling Policy:** Dynamic Target Tracking targeting 55% Average CPU Utilization.
+Amazon CloudFront: Configured as the global Edge distribution with optimized caching rules for static frontend assets (/static/*, CSS, JS, images), reducing load on decoupled frontend web servers.
+Amazon Route 53: Manages public DNS records using Alias routing directly to CloudFront/ALB.
+Compute & Load Balancing Tier
+Application Load Balancer (ALB): Public-facing across frontend subnets. Routes client traffic to the decoupled frontend tier and monitors target group health via HTTP /healthcheck status codes.
+Auto Scaling Groups (ASG):
+ * Frontend ASG: Min Size: 2 | Desired Capacity: 2 | Max Size: 6 (Runs web/UI layer across separate subnets).
+ * Backend ASG: Min Size: 2 | Desired Capacity: 2 | Max Size: 6 (Runs API/business logic layer in isolated backend subnets).
+ * Launch Templates: Amazon Linux 2023 AMI with User Data scripts initializing decoupled application layers and CloudWatch agents.
+ * Scaling Policies: Dynamic Target Tracking targeting 55% Average CPU Utilization.
+Database Tier
+Amazon RDS for MySQL: Multi-AZ deployment configuration.
+Failover Capabilities: Synchronous physical block-level replication to AZ-1b with automated DNS failover under 60 seconds during availability loss.
+Operational Management & Security
+AWS Systems Manager (SSM) Session Manager: Bastion-free server administration. Inbound SSH port 22 is permanently closed across all instances. Administrative access is audited via AWS CloudTrail.
+Amazon CloudWatch & SNS: Real-time monitoring metrics (EC2 CPU, ALB target response time, RDS free storage space) tied to SNS topics for immediate administrator notifications.
+5. Security Group Control Matrix
+| Security Group ID | Inbound Traffic | Source Restriction | Outbound Rules | Purposes |
+|---|---|---|---|---|
+| sg-alb | HTTP (80), HTTPS (443) | 0.0.0.0/0 | HTTP (3000) -> sg-frontend | Public perimeter load balancing |
+| sg-frontend | Custom TCP (3000) | sg-alb ONLY | Custom TCP (8080) -> sg-backend | Decoupled frontend presentation layer isolation |
+| sg-backend | Custom TCP (8080) | sg-frontend ONLY | All Traffic via NAT | Decoupled backend API computation layer isolation |
+| sg-rds | MySQL (3306) | sg-backend ONLY | Outbound Ingress Only | Strict database tier access rule |
+6. Project Verification & Validation
+High Availability Test: Verified database resiliency and decoupled tier communication by simulating a primary node reboot (force-failover). Secondary database node promoted within 38 seconds without service downtime.
+Auto Scaling Verification: Executed synthetic CPU load spikes (stress-ng) on both frontend and backend instances. CloudWatch triggered ASG alarms, independently scaling instances across both AZs and distinct subnets.
+Security Audit: Confirmed 0 open external SSH ports across all decoupled subnets. Successfully established administrative shell via SSM Session Manager.
 
 
 
-### Database Tier
 
-* **Amazon RDS for MySQL:** Multi-AZ deployment configuration.
-* **Failover Capabilities:** Synchronous physical block-level replication to AZ-1b with automated DNS failover under 60 seconds during availability loss.
 
-### Operational Management & Security
 
-* **AWS Systems Manager (SSM) Session Manager:** Bastion-free server administration. Inbound SSH port 22 is permanently closed across all instances. Administrative access is audited via AWS CloudTrail.
-* **Amazon CloudWatch & SNS:** Real-time monitoring metrics (EC2 CPU, ALB target response time, RDS free storage space) tied to SNS topics for immediate administrator notifications.
 
----
 
-## 5. Security Group Control Matrix
-
-| Security Group ID | Inbound Traffic | Source Restriction | Outbound Rules | Purpose |
-| --- | --- | --- | --- | --- |
-| `sg-alb` | HTTP (80), HTTPS (443) | `0.0.0.0/0` | HTTP (8080) -> `sg-web` | Public perimeter load balancing |
-| `sg-web` | Custom TCP (8080) | `sg-alb` ONLY | All Traffic via NAT | Application compute node isolation |
-| `sg-rds` | MySQL (3306) | `sg-web` ONLY | Outbound Ingress Only | Strict database tier access rule |
-
----
-
-## 6. Project Verification & Validation
-
-1. **High Availability Test:** Verified database resiliency by simulating a primary node reboot (`force-failover`). Secondary node promoted within 38 seconds without app downtime.
-2. **Auto Scaling Verification:** Executed synthetic CPU load spikes (`stress-ng`). CloudWatch triggered ASG alarms, scaling instances from 2 to 4 nodes across both AZs.
-3. **Security Audit:** Confirmed 0 open external SSH ports. Successfully established administrative shell via SSM Session Manager.
-
-```
-
-```
