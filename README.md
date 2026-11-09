@@ -1,9 +1,5 @@
 ```markdown
-# Scalable & Highly Available Web Application Architecture on AWS
-
-**Author:** Ayman Aly Mahmoud  
-**Email:** ayman@manara.tech  
-**LinkedIn:** [Ayman Mahmoud](https://www.linkedin.com/in/ayman-mahmoud)  
+# Scalable & Highly Available Web Application Architecture on AWS  
 **Project:** Graduation Project — Scalable Web Application with ALB and Auto Scaling  
 
 ---
